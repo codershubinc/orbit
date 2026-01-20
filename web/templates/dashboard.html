@@ -77,8 +77,8 @@
 
                 <!-- State Column -->
                 <td class="px-6 py-4">
-                  {{if eq $info.StateClass "building"}}
-                  {{if eq $info.StateClass "building"}}
+                  {{if eq $info.StateClass "building"}} {{if eq $info.StateClass
+                  "building"}}
                   <span
                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-900 text-yellow-200 animate-pulse-custom"
                   >
@@ -112,8 +112,11 @@
 
                 <td class="px-6 py-4">
                   <form action="/build" method="POST">
-                    <input type="hidden" name="project" value="{{$name}}">
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1 px-3 rounded shadow hover:shadow-md transition-all active:scale-95">
+                    <input type="hidden" name="project" value="{{$name}}" />
+                    <button
+                      type="submit"
+                      class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1 px-3 rounded shadow hover:shadow-md transition-all active:scale-95"
+                    >
                       🚀 Build
                     </button>
                   </form>
