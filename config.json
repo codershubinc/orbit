@@ -2,6 +2,14 @@
     "port": 9000,
     "webhook_secret": "change-this-to-something-secure",
     "projects": {
+        "orbit-demo": {
+            "path": "/home/swap/Github/orbit-demo",
+            "branch": "main",
+            "build_cmd": "go build -o demo-server main.go",
+            "restart_cmd": "echo 'Restarting demo...' && ./demo-server &",
+            "binary_name": "demo-server",
+            "health_url": "http://localhost:9999/health"
+        },
         "quazaar": {
             "path": "/home/swap/Github/quazaar",
             "branch": "main",

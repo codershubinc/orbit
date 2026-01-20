@@ -36,7 +36,17 @@ func main() {
 	mux.HandleFunc("/webhook", h.Webhook)
 	mux.HandleFunc("/build", h.Build) // <--- Manual Build
 	mux.HandleFunc("/config", h.Config)
+	// serve html file of dashboard
 	mux.HandleFunc("/", h.Dashboard)
+
+	// API Routes
+	mux.HandleFunc("GET /api/dashboard", h.GetDashboardAPI)
+	mux.HandleFunc("POST /api/build", h.TriggerBuildAPI)
+	mux.HandleFunc("GET /api/config", h.GetConfigAPI)
+	mux.HandleFunc("PUT /api/config/global", h.UpdateGlobalConfigAPI)
+	mux.HandleFunc("POST /api/projects", h.CreateProjectAPI)
+	mux.HandleFunc("PUT /api/projects/{name}", h.UpdateProjectAPI)
+	mux.HandleFunc("DELETE /api/projects/{name}", h.DeleteProjectAPI)
 
 	// 4. Start Server
 	addr := fmt.Sprintf(":%d", cfg.Port)

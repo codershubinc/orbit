@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,6 +14,9 @@ import (
 	"orbit/internal/service"
 )
 
+//go:embed templates/*.html
+var templatesFS embed.FS
+
 type Handler struct {
 	Manager *service.Manager
 }
@@ -23,55 +26,14 @@ func NewHandler(m *service.Manager) *Handler {
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
-	load := h.Manager.GetSystemLoad()
-
-	type ProjectView struct {
-		Status, ResultClass, StateClass, LastResult, TimeAgo string
-	}
-
-	data := struct {
-		Load       float64
-		Overloaded bool
-		Projects   map[string]ProjectView
-	}{
-		Load:       load,
-		Overloaded: load > 1.5,
-		Projects:   make(map[string]ProjectView),
-	}
-
-	h.Manager.Mutex.Lock()
-	for name, s := range h.Manager.StatusMap {
-		stateClass := strings.ToLower(s.Status)
-		resultClass := "idle"
-		if s.LastResult == "Success" {
-			resultClass = "success"
-		}
-		if s.LastResult == "Rollback" {
-			resultClass = "failed"
-		}
-
-		timeStr := "Never"
-		if !s.LastRun.IsZero() {
-			timeStr = s.LastRun.Format("15:04:05")
-		}
-
-		data.Projects[name] = ProjectView{
-			Status:      s.Status,
-			StateClass:  stateClass,
-			LastResult:  s.LastResult,
-			ResultClass: resultClass,
-			TimeAgo:     timeStr,
-		}
-	}
-	h.Manager.Mutex.Unlock()
-
-	tmpl, err := template.ParseFiles("web/templates/dashboard.html")
+	data, err := templatesFS.ReadFile("templates/dashboard.html")
 	if err != nil {
-		http.Error(w, "Could not load dashboard template", http.StatusInternalServerError)
-		log.Printf("Template error: %v", err)
+		http.Error(w, "Could not load dashboard", http.StatusInternalServerError)
+		log.Printf("File read error: %v", err)
 		return
 	}
-	tmpl.Execute(w, data)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(data)
 }
 
 func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +97,21 @@ func (h *Handler) Config(w http.ResponseWriter, r *http.Request) {
 			proj.HealthURL = r.FormValue("proj_" + name + "_health")
 			h.Manager.Config.Projects[name] = proj
 		}
+		// Add New Project if Name is Provided
+		newProjName := r.FormValue("new_project_name")
+		if newProjName != "" {
+			if h.Manager.Config.Projects == nil {
+				h.Manager.Config.Projects = make(map[string]model.Project)
+			}
+			h.Manager.Config.Projects[newProjName] = model.Project{
+				Path:       r.FormValue("new_project_path"),
+				Branch:     r.FormValue("new_project_branch"),
+				BuildCmd:   r.FormValue("new_project_build"),
+				RestartCmd: r.FormValue("new_project_restart"),
+				BinaryName: r.FormValue("new_project_binary"),
+				HealthURL:  r.FormValue("new_project_health"),
+			}
+		}
 
 		// Save Logic
 		// Ideally pass a path, for now hardcoding or using global config path logic if we had one
@@ -147,18 +124,15 @@ func (h *Handler) Config(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// GET Request - Render Template
-	// Re-read config to ensure fresh state if edited manually?
-	// Or just display current memory state. For now memory state matches requirements.
-
-	// We might want to pass the map explicitly so template renders range correctly
-	tmpl, err := template.ParseFiles("web/templates/config.html")
+	// GET Request - Serve HTML directly (API-driven)
+	data, err := templatesFS.ReadFile("templates/config.html")
 	if err != nil {
-		http.Error(w, "Could not load config template", http.StatusInternalServerError)
-		log.Printf("Template error: %v", err)
+		http.Error(w, "Could not load config page", http.StatusInternalServerError)
+		log.Printf("File read error: %v", err)
 		return
 	}
-	tmpl.Execute(w, h.Manager.Config)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(data)
 }
 
 // ConfigJSONHandler handles the raw JSON editor if we still want it,
@@ -180,4 +154,199 @@ func (h *Handler) ConfigJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ... implementation omitted as we moved to form based ...
+}
+
+// API Handlers
+
+func (h *Handler) GetConfigAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(h.Manager.Config); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) UpdateGlobalConfigAPI(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Port   int    `json:"port"`
+		Secret string `json:"secret"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	h.Manager.Config.Port = payload.Port
+	h.Manager.Config.Secret = payload.Secret
+
+	if err := config.Save("config.json", h.Manager.Config); err != nil {
+		http.Error(w, "Failed to save config", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) CreateProjectAPI(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Name          string `json:"name"`
+		model.Project        // Embed project fields
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if payload.Name == "" {
+		http.Error(w, "Project name is required", http.StatusBadRequest)
+		return
+	}
+
+	if h.Manager.Config.Projects == nil {
+		h.Manager.Config.Projects = make(map[string]model.Project)
+	}
+
+	if _, exists := h.Manager.Config.Projects[payload.Name]; exists {
+		http.Error(w, "Project already exists", http.StatusConflict)
+		return
+	}
+
+	h.Manager.Config.Projects[payload.Name] = payload.Project
+
+	if err := config.Save("config.json", h.Manager.Config); err != nil {
+		http.Error(w, "Failed to save config", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *Handler) UpdateProjectAPI(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "Project name is required", http.StatusBadRequest)
+		return
+	}
+
+	var payload model.Project
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if _, exists := h.Manager.Config.Projects[name]; !exists {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	h.Manager.Config.Projects[name] = payload
+
+	if err := config.Save("config.json", h.Manager.Config); err != nil {
+		http.Error(w, "Failed to save config", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) DeleteProjectAPI(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "Project name is required", http.StatusBadRequest)
+		return
+	}
+
+	if _, exists := h.Manager.Config.Projects[name]; !exists {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	delete(h.Manager.Config.Projects, name)
+
+	if err := config.Save("config.json", h.Manager.Config); err != nil {
+		http.Error(w, "Failed to save config", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) GetDashboardAPI(w http.ResponseWriter, r *http.Request) {
+	load := h.Manager.GetSystemLoad()
+
+	type ProjectView struct {
+		Name        string `json:"name"`
+		Status      string `json:"status"`
+		ResultClass string `json:"result_class"`
+		StateClass  string `json:"state_class"`
+		LastResult  string `json:"last_result"`
+		TimeAgo     string `json:"time_ago"`
+	}
+
+	data := struct {
+		Load       float64       `json:"load"`
+		Overloaded bool          `json:"overloaded"`
+		Projects   []ProjectView `json:"projects"`
+	}{
+		Load:       load,
+		Overloaded: load > 1.5,
+		Projects:   make([]ProjectView, 0),
+	}
+
+	h.Manager.Mutex.Lock()
+	for name, s := range h.Manager.StatusMap {
+		stateClass := strings.ToLower(s.Status)
+		resultClass := "idle"
+		if s.LastResult == "Success" {
+			resultClass = "success"
+		}
+		if s.LastResult == "Rollback" {
+			resultClass = "failed"
+		}
+
+		timeStr := "Never"
+		if !s.LastRun.IsZero() {
+			timeStr = s.LastRun.Format("15:04:05")
+		}
+
+		data.Projects = append(data.Projects, ProjectView{
+			Name:        name,
+			Status:      s.Status,
+			StateClass:  stateClass,
+			LastResult:  s.LastResult,
+			ResultClass: resultClass,
+			TimeAgo:     timeStr,
+		})
+	}
+	h.Manager.Mutex.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
+}
+
+func (h *Handler) TriggerBuildAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		Project string `json:"project"`
+	}
+	// Try parsing JSON first
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		// Fallback ignored
+	}
+
+	if payload.Project == "" {
+		payload.Project = r.URL.Query().Get("project")
+	}
+
+	if payload.Project == "" {
+		http.Error(w, "Project name required", http.StatusBadRequest)
+		return
+	}
+
+	if success := h.Manager.TriggerBuild(payload.Project); !success {
+		http.Error(w, "Project not found", 404)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "Build triggered"})
 }

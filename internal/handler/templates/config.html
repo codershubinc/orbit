@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Orbit Configuration</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      async function loadConfig() {
+        try {
+          const resp = await fetch("/api/config");
+          const config = await resp.json();
+
+          document.getElementById("global_port").value = config.port;
+          document.getElementById("global_secret").value =
+            config.webhook_secret;
+
+          const projectsContainer =
+            document.getElementById("projects-container");
+          projectsContainer.innerHTML = ""; // Clear
+
+          if (config.projects) {
+            for (const [name, project] of Object.entries(config.projects)) {
+              const html = `
+                        <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-lg relative overflow-hidden mb-6" id="project-${name}">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-xl font-semibold text-blue-400 flex items-center">
+                                    <span class="bg-blue-900/30 px-2 py-1 rounded mr-2 text-sm text-blue-300">PROJECT</span>
+                                    ${name}
+                                </h3>
+                                <button type="button" onclick="deleteProject('${name}')" class="text-red-400 hover:text-red-300 text-sm border border-red-900 bg-red-900/20 px-3 py-1 rounded transition-colors cursor-pointer">
+                                    🗑️ Delete
+                                </button>
+                            </div>
+
+                            <form onsubmit="updateProject(event, '${name}')">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div class="space-y-2">
+                                        <label class="block text-xs uppercase tracking-wider font-bold text-gray-500">Project Path</label>
+                                        <input type="text" name="path" value="${project.path}" class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-xs uppercase tracking-wider font-bold text-gray-500">Git Branch</label>
+                                        <input type="text" name="branch" value="${project.branch}" class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-xs uppercase tracking-wider font-bold text-gray-500">Binary Name</label>
+                                        <input type="text" name="binary_name" value="${project.binary_name}" class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-xs uppercase tracking-wider font-bold text-gray-500">Health Check URL</label>
+                                        <input type="text" name="health_url" value="${project.health_url}" class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                </div>
+
+                                <div class="space-y-6 border-t border-gray-700 pt-6">
+                                    <div class="space-y-2">
+                                        <label class="block text-xs uppercase tracking-wider font-bold text-yellow-600">Build Command</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+                                            <input type="text" name="build_cmd" value="${project.build_cmd}" class="w-full bg-black border border-gray-700 rounded-md py-2 pl-8 pr-3 text-green-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-xs uppercase tracking-wider font-bold text-red-500">Restart Command</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
+                                            <input type="text" name="restart_cmd" value="${project.restart_cmd}" class="w-full bg-black border border-gray-700 rounded-md py-2 pl-8 pr-3 text-green-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-end pt-4">
+                                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors text-sm shadow-md">
+                                            Update ${name}
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        `;
+              projectsContainer.insertAdjacentHTML("beforeend", html);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load config", err);
+        }
+      }
+
+      async function saveGlobalConfig(event) {
+        event.preventDefault();
+        const form = event.target;
+        const data = {
+          port: parseInt(form.global_port.value),
+          secret: form.global_secret.value,
+        };
+
+        try {
+          const resp = await fetch("/api/config/global", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+
+          if (resp.ok) {
+            alert(
+              "Global settings saved! Restart server manually if port changed.",
+            );
+            loadConfig();
+          } else {
+            alert("Failed to save global settings");
+          }
+        } catch (err) {
+          alert("Error saving global settings");
+        }
+      }
+
+      async function updateProject(event, name) {
+        event.preventDefault();
+        const form = event.target;
+        const data = {
+          path: form.path.value,
+          branch: form.branch.value,
+          binary_name: form.binary_name.value,
+          health_url: form.health_url.value,
+          build_cmd: form.build_cmd.value,
+          restart_cmd: form.restart_cmd.value,
+        };
+
+        try {
+          const resp = await fetch(`/api/projects/${name}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+
+          if (resp.ok) {
+            // Visual feedback
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.innerText;
+            btn.innerText = "Saved!";
+            btn.classList.add("bg-green-600");
+            setTimeout(() => {
+              btn.innerText = originalText;
+              btn.classList.remove("bg-green-600");
+            }, 2000);
+            loadConfig();
+          } else {
+            alert(`Failed to update project ${name}`);
+          }
+        } catch (err) {
+          alert(`Error updating project ${name}`);
+        }
+      }
+
+      async function createProject(event) {
+        event.preventDefault();
+        const form = event.target;
+        const name = form.new_project_name.value;
+        if (!name) return alert("Project name required");
+
+        const data = {
+          name: name,
+          path: form.new_project_path.value,
+          branch: form.new_project_branch.value,
+          binary_name: form.new_project_binary.value,
+          health_url: form.new_project_health.value,
+          build_cmd: form.new_project_build.value,
+          restart_cmd: form.new_project_restart.value,
+        };
+
+        try {
+          const resp = await fetch("/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+
+          if (resp.ok) {
+            alert(`Project ${name} created!`);
+            form.reset();
+            loadConfig();
+          } else if (resp.status === 409) {
+            alert("Project already exists");
+          } else {
+            alert("Failed to create project");
+          }
+        } catch (err) {
+          alert("Error creating project");
+        }
+      }
+
+      async function deleteProject(name) {
+        if (!confirm(`Are you sure you want to delete project ${name}?`))
+          return;
+
+        try {
+          const resp = await fetch(`/api/projects/${name}`, {
+            method: "DELETE",
+          });
+
+          if (resp.ok) {
+            loadConfig();
+          } else {
+            alert("Failed to delete project");
+          }
+        } catch (err) {
+          alert("Error deleting project");
+        }
+      }
+
+      window.onload = loadConfig;
+    </script>
+  </head>
+  <body class="bg-gray-900 text-gray-300 font-sans antialiased p-6">
+    <div class="max-w-5xl mx-auto">
+      <header
+        class="flex justify-between items-center border-b border-gray-700 pb-4 mb-8"
+      >
+        <h1 class="text-3xl text-blue-400 font-bold flex items-center gap-2">
+          <span>⚙️ Configuration</span>
+        </h1>
+        <a
+          href="/"
+          class="text-sm bg-gray-800 hover:bg-gray-700 text-blue-400 px-4 py-2 rounded border border-gray-700 transition-colors"
+        >
+          ← Back to Dashboard
+        </a>
+      </header>
+
+      <!-- Global Settings -->
+      <form
+        onsubmit="saveGlobalConfig(event)"
+        class="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-lg mb-8"
+      >
+        <div
+          class="flex justify-between items-center border-b border-gray-700 pb-3 mb-5"
+        >
+          <h2 class="text-xl font-semibold text-white">Global Settings</h2>
+          <button
+            type="submit"
+            class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1 px-3 rounded"
+          >
+            Save Global
+          </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-gray-400"
+              >Server Port</label
+            >
+            <input
+              type="number"
+              name="global_port"
+              id="global_port"
+              required
+              class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xs"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-gray-400"
+              >Webhook Secret</label
+            >
+            <input
+              type="text"
+              name="global_secret"
+              id="global_secret"
+              required
+              class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      </form>
+
+      <!-- Projects Loop (Populated by JS) -->
+      <h2 class="text-2xl font-bold text-gray-100 pt-4 mb-4">Projects</h2>
+      <div id="projects-container">
+        <!-- Javascript will inject projects here -->
+      </div>
+
+      <!-- Add New Project -->
+      <form
+        onsubmit="createProject(event)"
+        class="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-lg relative overflow-hidden mt-8 border-dashed border-2 bg-opacity-50"
+      >
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-green-400 flex items-center">
+            <span class="mr-2">➕</span> Add New Project
+          </h2>
+          <button
+            type="submit"
+            class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg flex items-center gap-2"
+          >
+            <span>Create Project</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <!-- Project Name (Key) -->
+          <div class="space-y-2 md:col-span-2">
+            <label class="block text-sm font-medium text-green-400"
+              >Project Name (Required)</label
+            >
+            <input
+              type="text"
+              name="new_project_name"
+              placeholder="e.g. my-awesome-app"
+              required
+              class="w-full bg-gray-900 border border-green-600/50 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="block text-xs uppercase tracking-wider font-bold text-gray-500"
+              >Project Path</label
+            >
+            <input
+              type="text"
+              name="new_project_path"
+              placeholder="/path/to/repo"
+              class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div class="space-y-2">
+            <label
+              class="block text-xs uppercase tracking-wider font-bold text-gray-500"
+              >Git Branch</label
+            >
+            <input
+              type="text"
+              name="new_project_branch"
+              value="main"
+              class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div class="space-y-2">
+            <label
+              class="block text-xs uppercase tracking-wider font-bold text-gray-500"
+              >Binary Name</label
+            >
+            <input
+              type="text"
+              name="new_project_binary"
+              placeholder="app"
+              class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div class="space-y-2">
+            <label
+              class="block text-xs uppercase tracking-wider font-bold text-gray-500"
+              >Health Check URL</label
+            >
+            <input
+              type="text"
+              name="new_project_health"
+              placeholder="http://localhost:8080/health"
+              class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <div class="space-y-6 border-t border-gray-700 pt-6">
+          <div class="space-y-2">
+            <label
+              class="block text-xs uppercase tracking-wider font-bold text-yellow-600"
+              >Build Command</label
+            >
+            <div class="relative">
+              <span
+                class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500"
+                >$</span
+              >
+              <input
+                type="text"
+                name="new_project_build"
+                placeholder="go build -o app main.go"
+                class="w-full bg-black border border-gray-700 rounded-md py-2 pl-8 pr-3 text-green-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="block text-xs uppercase tracking-wider font-bold text-red-500"
+              >Restart Command</label
+            >
+            <div class="relative">
+              <span
+                class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500"
+                >$</span
+              >
+              <input
+                type="text"
+                name="new_project_restart"
+                placeholder="systemctl restart myapp"
+                class="w-full bg-black border border-gray-700 rounded-md py-2 pl-8 pr-3 text-green-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="h-16"></div>
+    </div>
+  </body>
+</html>
