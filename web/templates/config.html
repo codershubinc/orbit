@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Orbit Configuration</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-900 text-gray-300 font-sans antialiased p-6">
+    <div class="max-w-5xl mx-auto">
+      <header
+        class="flex justify-between items-center border-b border-gray-700 pb-4 mb-8"
+      >
+        <h1 class="text-3xl text-blue-400 font-bold flex items-center gap-2">
+          <span>⚙️ Configuration</span>
+        </h1>
+        <a
+          href="/"
+          class="text-sm bg-gray-800 hover:bg-gray-700 text-blue-400 px-4 py-2 rounded border border-gray-700 transition-colors"
+        >
+          ← Back to Dashboard
+        </a>
+      </header>
+
+      <form method="POST" class="space-y-8">
+        <!-- Global Settings -->
+        <div
+          class="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-lg"
+        >
+          <h2
+            class="text-xl font-semibold text-white border-b border-gray-700 pb-3 mb-5"
+          >
+            Global Settings
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label class="block text-sm font-medium text-gray-400"
+                >Server Port</label
+              >
+              <input
+                type="number"
+                name="global_port"
+                value="{{.Port}}"
+                required
+                class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xs"
+              />
+            </div>
+            <div class="space-y-2">
+              <label class="block text-sm font-medium text-gray-400"
+                >Webhook Secret</label
+              >
+              <input
+                type="text"
+                name="global_secret"
+                value="{{.Secret}}"
+                required
+                class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Projects Loop -->
+        <h2 class="text-2xl font-bold text-gray-100 pt-4">Projects</h2>
+
+        {{range $name, $project := .Projects}}
+        <div
+          class="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-lg relative overflow-hidden"
+        >
+          <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+
+          <h3
+            class="text-xl font-semibold text-blue-400 mb-6 flex items-center"
+          >
+            <span
+              class="bg-blue-900/30 px-2 py-1 rounded mr-2 text-sm text-blue-300"
+              >PROJECT</span
+            >
+            {{$name}}
+          </h3>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="space-y-2">
+              <label
+                class="block text-xs uppercase tracking-wider font-bold text-gray-500"
+                >Project Path</label
+              >
+              <input
+                type="text"
+                name="proj_{{$name}}_path"
+                value="{{$project.Path}}"
+                class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div class="space-y-2">
+              <label
+                class="block text-xs uppercase tracking-wider font-bold text-gray-500"
+                >Git Branch</label
+              >
+              <input
+                type="text"
+                name="proj_{{$name}}_branch"
+                value="{{$project.Branch}}"
+                class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div class="space-y-2">
+              <label
+                class="block text-xs uppercase tracking-wider font-bold text-gray-500"
+                >Binary Name</label
+              >
+              <input
+                type="text"
+                name="proj_{{$name}}_binary"
+                value="{{$project.BinaryName}}"
+                class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div class="space-y-2">
+              <label
+                class="block text-xs uppercase tracking-wider font-bold text-gray-500"
+                >Health Check URL</label
+              >
+              <input
+                type="text"
+                name="proj_{{$name}}_health"
+                value="{{$project.HealthURL}}"
+                class="w-full bg-gray-900 border border-gray-700 rounded-md py-2 px-3 text-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-6 border-t border-gray-700 pt-6">
+            <div class="space-y-2">
+              <label
+                class="block text-xs uppercase tracking-wider font-bold text-yellow-600"
+                >Build Command</label
+              >
+              <div class="relative">
+                <span
+                  class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500"
+                  >$</span
+                >
+                <input
+                  type="text"
+                  name="proj_{{$name}}_build"
+                  value="{{$project.BuildCmd}}"
+                  class="w-full bg-black border border-gray-700 rounded-md py-2 pl-8 pr-3 text-green-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label
+                class="block text-xs uppercase tracking-wider font-bold text-red-500"
+                >Restart Command</label
+              >
+              <div class="relative">
+                <span
+                  class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500"
+                  >$</span
+                >
+                <input
+                  type="text"
+                  name="proj_{{$name}}_restart"
+                  value="{{$project.RestartCmd}}"
+                  class="w-full bg-black border border-gray-700 rounded-md py-2 pl-8 pr-3 text-green-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        {{end}}
+
+        <div
+          class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 p-4 flex justify-end shadow-xl"
+        >
+          <div class="max-w-5xl mx-auto w-full flex justify-end">
+            <button
+              type="submit"
+              class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg flex items-center gap-2"
+            >
+              <span>💾 Save Configuration</span>
+            </button>
+          </div>
+        </div>
+        <!-- Spacer for fixed bottom bar -->
+        <div class="h-16"></div>
+      </form>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+{
+    "port": 9000,
+    "webhook_secret": "change-this-to-something-secure",
+    "projects": {
+        "quazaar": {
+            "path": "/home/swap/Github/quazaar",
+            "branch": "main",
+            "build_cmd": "go build -o quazaar main.go",
+            "restart_cmd": "sudo systemctl restart quazzar",
+            "binary_name": "quazaar",
+            "health_url": "http://localhost:8765/health"
+        }
+    }
+}
