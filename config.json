@@ -1,5 +1,5 @@
 {
-    "port": 9000,
+    "port": 9292,
     "webhook_secret": "change-this-to-something-secure",
     "projects": {
         "orbit-demo": {

@@ -13,11 +13,12 @@ import (
 func main() {
 	// 0. Print Banner
 	fmt.Println(`
-   ____  ____  ____  __  ______
-  / __ \/ __ \/ __ \/  |/  /_  __/
- / /_/ / /_/ / /_/ / /|_/ / / /   
- \____/_/ |_/_____/_/  /_/ /_/    
-      v2.0 • Modular Architecture
+   ____  ____  ____  _____ ______
+  / __ \/ __ \/ __ )/  _// ____/
+ / / / / /_/ / __  |/ / / /     
+/ /_/ / _, _/ /_/ // / / /___   
+\____/_/ |_/_____/___/ \____/   
+     v2.0 • Modular Architecture
 	`)
 
 	// 1. Load Config
@@ -47,6 +48,7 @@ func main() {
 	mux.HandleFunc("POST /api/projects", h.CreateProjectAPI)
 	mux.HandleFunc("PUT /api/projects/{name}", h.UpdateProjectAPI)
 	mux.HandleFunc("DELETE /api/projects/{name}", h.DeleteProjectAPI)
+	mux.HandleFunc("GET /api/machine-info", h.MachineInfoApi)
 
 	// 4. Start Server
 	addr := fmt.Sprintf(":%d", cfg.Port)

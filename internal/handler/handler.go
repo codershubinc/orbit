@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"orbit/internal/codershubinc"
 	"orbit/internal/config"
 	"orbit/internal/model"
 	"orbit/internal/service"
@@ -349,4 +350,16 @@ func (h *Handler) TriggerBuildAPI(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "Build triggered"})
+}
+
+func (h *Handler) MachineInfoApi(w http.ResponseWriter, r *http.Request) {
+	m, err := codershubinc.GatherMachineInfo()
+	if err != nil {
+		http.Error(w, "Failed to gather machine info", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(m)
 }
